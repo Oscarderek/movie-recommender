@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Derek Recommender</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    .recommendation {
+      transition: all 0.3s ease-in-out;
+    }
+    .recommendation:hover {
+      background-color: #444;
+    }
+    .feedback-stats {
+      font-size: 0.9rem;
+      color: #ccc;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body class="bg-dark text-white">
+  <div class="container py-5">
+    <h1 class="text-center mb-4">🎬 Derek's Movie Recommender</h1>
+
+    <form method="POST" class="mb-4">
+      <div class="input-group">
+        <input type="text" class="form-control" name="title" placeholder="Enter a Netflix show title" required>
+        <button class="btn btn-danger" type="submit">Get Recommendations</button>
+      </div>
+    </form>
+
+    {% if recommendations %}
+      <h3 class="mb-3">If you liked <strong>{{ title }}</strong>, you might also enjoy:</h3>
+      <ul class="list-group">
+        {% for rec in recommendations %}
+          <li class="list-group-item bg-secondary text-white recommendation d-flex justify-content-between align-items-center">
+            <div>
+              <strong>{{ rec }}</strong>
+              <div class="feedback-stats" id="stats-{{ loop.index }}"></div>
+            </div>
+            <div>
+              <form class="d-inline feedback-form" data-index="{{ loop.index }}">
+                <input type="hidden" name="original_title" value="{{ title }}">
+                <input type="hidden" name="recommended_title" value="{{ rec }}">
+              </form>
+              <button type="button" class="btn btn-sm btn-success feedback-btn" data-feedback="like" data-form-index="{{ loop.index }}"><i class="bi bi-hand-thumbs-up-fill"></i></button>
+              <button type="button" class="btn btn-sm btn-danger feedback-btn" data-feedback="dislike" data-form-index="{{ loop.index }}"><i class="bi bi-hand-thumbs-down-fill"></i></button>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% elif title %}
+      <div class="alert alert-warning mt-4">No matches found for "{{ title }}".</div>
+    {% endif %}
+  </div>
+
+  <!-- Modal -->
+  <div class="modal fade" id="feedbackModal" tabindex="-1" aria-labelledby="feedbackModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content bg-dark text-white">
+        <div class="modal-header">
+          <h5 class="modal-title" id="feedbackModalLabel">Thank You!</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          Your feedback has been recorded.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const feedbackModal = new bootstrap.Modal(document.getElementById('feedbackModal'));
+
+    document.querySelectorAll('.feedback-btn').forEach(button => {
+      button.addEventListener('click', async () => {
+        const feedbackValue = button.getAttribute('data-feedback');
+        const formIndex = button.getAttribute('data-form-index');
+        const form = document.querySelector(`.feedback-form[data-index="${formIndex}"]`);
+        const formData = new FormData(form);
+        formData.append('feedback', feedbackValue);
+
+        const recommended = formData.get('recommended_title');
+
+        await fetch('/feedback', {
+          method: 'POST',
+          body: formData
+        });
+
+        feedbackModal.show();
+
+        // Fetch and update feedback stats
+        const res = await fetch('/feedback_stats', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ recommended_title: recommended })
+        });
+
+        const data = await res.json();
+        const statsDiv = document.getElementById(`stats-${formIndex}`);
+        if (data.percent_liked !== null) {
+          statsDiv.innerText = `${data.percent_liked}% of users liked this`;
+        } else {
+          statsDiv.innerText = `You're the first to rate this!`;
+        }
+      });
+    });
+  </script>
+</body>
+</html>
